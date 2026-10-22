@@ -1,0 +1,1 @@
+DIAGNOSTIC TEST ONLY. Do not add/edit/delete records. Upload all files into a new folder management-diagnostic. Sign in and report the exact cloud status message. Do not delete original app, backups, or Firestore data.

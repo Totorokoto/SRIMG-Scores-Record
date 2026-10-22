@@ -1,0 +1,43 @@
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js';
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,getFirestore,collection,doc,onSnapshot,getDocs,setDoc,deleteDoc} from 'https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js';
+const cfg={apiKey:'AIzaSyAtkFjmesPGIoQc9VRysEvJPCmuQ9D5tFI',authDomain:'sri-master-guide-club.firebaseapp.com',projectId:'sri-master-guide-club',storageBucket:'sri-master-guide-club.firebasestorage.app',messagingSenderId:'64893913483',appId:'1:64893913483:web:3a3bdf2a2d4f07b03d878e'};
+const app=initializeApp(cfg),auth=getAuth(app);let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch{db=getFirestore(app)}
+const el=id=>document.getElementById(id);let units=null,campers=null,scores=null,unsubs=[],ready=false,previous=new Map(),busy=false;
+const status=t=>{el('cloud-status').textContent=t};
+const gate=t=>{el('cloud-gate').hidden=false;el('cloud-gate').style.display='block';el('cloud-auth-status').textContent=t};
+function maps(){const m=new Map();for(const u of campData.units){for(const r of u.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'unit',targetId:u.id});for(const c of u.members||[])for(const r of c.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'camper',targetId:c.id});}return m;}
+function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
+function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}status(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores · no pending changes');}},err=>status('Firebase error: '+err.message)));}
+let categoryLoaded=false;
+unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadataChanges:true},snapshot=>{
+  if(!snapshot.exists()){categoryLoaded=true;return}
+  const d=snapshot.data();if(!Array.isArray(d.merit)||!Array.isArray(d.demerit)||!d.merit.length||!d.demerit.length)return;
+  scoreCategories={merit:d.merit,demerit:d.demerit};categoryLoaded=true;renderCategoryFields();
+},err=>status('Category sync error: '+err.message)));
+}
+window.cloudSyncChange=()=>{if(!ready||!auth.currentUser)return;const next=maps(),writes=[];for(const [id,v] of next){const old=previous.get(id);if(!old||JSON.stringify(old)!==JSON.stringify(v)){const r=v.record;writes.push(setDoc(doc(db,'clubScores',id),{targetType:v.targetType,targetId:v.targetId,unitId:v.unitId,type:r.type,points:Number(r.points),date:r.date||'',reason:r.reason||'',clientCreatedAt:new Date().toISOString(),createdBy:auth.currentUser.uid}));}}for(const id of previous.keys())if(!next.has(id))writes.push(deleteDoc(doc(db,'clubScores',id)));previous=next;if(writes.length){status('Saving '+writes.length+' score change(s); may be pending offline…');for(const p of writes)p.catch(e=>{status('Save error: '+e.message);alert('Cloud save failed: '+e.message)})}};
+// Non-destructive entity management: each unit/camper is its own Firestore document.
+// Deletion remains disabled until dependent scores can be handled safely.
+function requireCloud(){if(!ready||!auth.currentUser){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
+function saveEntity(path,id,data){status('Saving change to cloud…');setDoc(doc(db,path,id),data,{merge:true}).catch(e=>{status('Save error: '+e.message);alert('Cloud save failed: '+e.message)})}
+window.addUnit=()=>{if(!requireCloud())return;openNameDialog('Add Unit','Enter the new unit name:','',name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(u=>u.name.toLowerCase()===n.toLowerCase()))return 'A unit with this name already exists.';saveEntity('clubUnits',createId(),{name:n});})};
+window.renameUnit=id=>{if(!requireCloud())return;const u=units.find(x=>x.id===id);if(!u)return;openNameDialog('Rename Unit','Enter the new unit name:',u.name,name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(x=>x.id!==id&&x.name.toLowerCase()===n.toLowerCase()))return 'Another unit already uses that name.';saveEntity('clubUnits',id,{name:n});})};
+window.addMember=unitId=>{if(!requireCloud())return;const u=units.find(x=>x.id===unitId);if(!u)return;openNameDialog('Add Camper',`Enter a camper's full name for ${u.name}:`,'',name=>{const n=name.trim();if(!n)return 'Please enter a camper name.';saveEntity('clubCampers',createId(),{name:n,unitId});})};
+window.addMemberToActiveUnit=()=>{if(activeUnitId)window.addMember(activeUnitId)};
+window.deleteUnit=()=>alert('Unit deletion is disabled in this test to protect campers and scores.');
+// Keep scoring category definitions synchronized as one shared Firestore document.
+// The document is only written after the administrator explicitly edits categories.
+window.manageCategories=()=>{if(!requireCloud()||!categoryLoaded){alert('Wait for categories to load.');return}
+  const type=prompt('Which categories would you like to edit? Type MERIT or DEMERIT:');if(type===null)return;
+  const key=type.trim().toLowerCase();if(key!=='merit'&&key!=='demerit'){showError('Please enter MERIT or DEMERIT.');return}
+  const answer=prompt(`Edit ${key} categories. Enter one category per line:`,scoreCategories[key].join('\n'));if(answer===null)return;
+  const categories=[...new Set(answer.split(/\r?\n/).map(x=>x.trim()).filter(Boolean))];
+  if(!categories.length||categories.some(x=>x.length>80)){showError('Keep at least one category; maximum 80 characters each.');return}
+  saveEntity('clubSettings','scoreCategories',{[key]:categories});
+};
+el('cloud-login').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,el('cloud-email').value.trim(),el('cloud-password').value);el('cloud-password').value=''}catch(err){gate('Sign in failed: '+err.message)}});
+el('cloud-signout').addEventListener('click',()=>signOut(auth));
+window.addEventListener('error',e=>{console.error('Diagnostic page error',e.error||e.message);status('Page error: '+(e.error?.message||e.message))});
+window.addEventListener('unhandledrejection',e=>{console.error('Diagnostic async error',e.reason);status('Async error: '+(e.reason?.message||String(e.reason)))});
+onAuthStateChanged(auth,user=>{if(user){el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';subscribe();Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
