@@ -322,6 +322,17 @@
   <div class="dialog-panel"><h2 id="app-error-title">Something needs attention</h2><p id="app-error-message"></p><div class="dialog-actions"><button type="button" class="primary-button" id="app-error-close">OK</button></div></div>
 </div>
 <script src="script.js"></script>
+  <script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("./service-worker.js")
+        .catch((error) => {
+          console.error("Service worker registration failed:", error);
+        });
+    });
+  }
+</script>
 <script type="module" src="cloud-integration.js"></script>
 <div id="cloud-gate">
   <div class="login-shell">
