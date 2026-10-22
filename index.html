@@ -31,6 +31,10 @@
       <button class="nav-item" type="button" data-page="reports" onclick="showListing('reports')"><span>▥</span> Reports</button>
     </nav>
 
+    <div style="padding: 12px 16px;">
+      <button type="button" id="export-backup-btn" style="width:100%;padding:12px;border:1px solid #d6b56b;border-radius:8px;background:#f6e8c5;color:#172b46;font-weight:700;cursor:pointer;">Download Data Backup</button>
+      <p style="font-size:12px;line-height:1.4;margin:8px 0;color:#d7e1e9;">Save your backup privately before cloud migration.</p>
+    </div>
     <div class="sidebar-footer">
       <span class="status-dot"></span>
       Personal Camp Records
@@ -38,6 +42,17 @@
   </aside>
 
   <main class="main-content">
+
+<section id="firebase-migration" style="margin:16px;padding:18px;border:2px solid #d6b56b;border-radius:12px;background:#fff;color:#172b46;max-width:700px">
+ <h2>Secure Firebase Migration (Preview)</h2>
+ <p><strong>Your current records are not changed by this tool.</strong> Sign in with your Firebase administrator account, select your private JSON backup, inspect counts, and upload a staging copy to Firestore. This is NOT yet the live multi-device sync app.</p>
+ <p id="migration-status" role="status">Not signed in</p>
+ <form id="migration-login"><label>Email <input id="migration-email" type="email" autocomplete="username" required></label><label>Password <input id="migration-password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
+ <button id="migration-logout" type="button" hidden>Sign out</button>
+ <div id="migration-controls" hidden><p><label>Choose your downloaded JSON backup: <input id="migration-file" type="file" accept=".json,application/json"></label></p><p id="migration-preview">No backup selected.</p><button id="migration-upload" type="button" disabled>Upload staging copy (does not replace current app)</button></div>
+ <p style="font-size:13px">Keep your backup file private. Never upload it to GitHub. Staging data is readable only under your published Firestore administrator rules.</p>
+</section>
+
     <header class="topbar">
       <div>
         <p class="eyebrow">CAMP MANAGEMENT</p>
@@ -296,7 +311,9 @@
 <div id="app-error" class="app-dialog hidden" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title">
   <div class="dialog-panel"><h2 id="app-error-title">Something needs attention</h2><p id="app-error-message"></p><div class="dialog-actions"><button type="button" class="primary-button" id="app-error-close">OK</button></div></div>
 </div>
+<script type="module" src="firebase-migration.js"></script>
 <script src="script.js"></script>
+<script src="backup-export.js"></script>
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {

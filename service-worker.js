@@ -1,5 +1,5 @@
-const CACHE_NAME = "sri-master-guide-v1";
-const APP_FILES = ["./", "./index.html", "./style.css", "./script.js", "./club-logo.png", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const CACHE_NAME = "sri-master-guide-migration-v3";
+const APP_FILES = ["./", "./index.html", "./style.css", "./script.js", "./backup-export.js", "./firebase-migration.js", "./club-logo.png", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES)).then(() => self.skipWaiting()));
 });
