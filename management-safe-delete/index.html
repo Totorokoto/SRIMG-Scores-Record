@@ -1,0 +1,310 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRI Master Guide Club</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#102746">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="SRI Master Guide">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="brand-logo" src="club-logo.png" alt="SRI Master Guide Club logo">
+      <div>
+        <h2>SRI Master Guide Club</h2>
+        <p>Merit & Demerit System</p>
+      </div>
+    </div>
+
+    <nav>
+      <button class="nav-item active" type="button" data-page="dashboard" onclick="showDashboard()"><span>▦</span> Dashboard</button>
+      <button class="nav-item" type="button" data-page="campers" onclick="showListing('campers')"><span>♟</span> Campers</button>
+      <button class="nav-item" type="button" data-page="units" onclick="showListing('units')"><span>▤</span> Units</button>
+      <button class="nav-item" type="button" data-page="reports" onclick="showListing('reports')"><span>▥</span> Reports</button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>
+      Personal Camp Records
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CAMP MANAGEMENT</p>
+        <h1>Dashboard</h1>
+        <p class="subtitle">Monitor unit standings and camper scores.</p>
+      </div>
+      <div class="date-label" id="today-date">Camp Scoreboard</div>
+    </header>
+
+    <section class="welcome-banner">
+      <div>
+        <p class="eyebrow light">MERIT & DEMERIT MONITORING</p>
+        <h2>Welcome to SRI Master Guide Club!</h2>
+        <p>Keep track of individual achievements and unit performance in one place.</p>
+      </div>
+      <div class="trophy-icon">🏆</div>
+    </section>
+
+    <section class="summary-grid">
+      <article class="summary-card">
+        <div class="summary-icon blue">▦</div>
+        <p>Total Units</p>
+        <h2 id="total-units">0</h2>
+        <span>Registered units</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon green">＋</div>
+        <p>Total Merits</p>
+        <h2 id="total-merits">0</h2>
+        <span>Points awarded</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon red">−</div>
+        <p>Total Demerits</p>
+        <h2 id="total-demerits">0</h2>
+        <span>Points deducted</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon gold">★</div>
+        <p>Total Campers</p>
+        <h2 id="total-campers">0</h2>
+        <span>Registered members</span>
+      </article>
+    </section>
+
+    <section class="units-section">
+      <div class="section-heading">
+        <div>
+          <h2>Unit Standings</h2>
+          <p>Click a unit to manage its members and records.</p>
+        </div>
+        <button class="primary-button" id="add-unit-btn" type="button">
+          + Add Unit
+        </button>
+      </div>
+
+      <div class="units-grid" id="units-container">
+        <div class="empty-state">
+          <div class="empty-icon">♧</div>
+          <h3>No units added yet</h3>
+          <p>Add your first unit to begin organizing your campers.</p>
+          <button class="primary-button" type="button"
+            onclick="document.getElementById('add-unit-btn').click()">
+            + Add Your First Unit
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <footer class="page-footer">
+      <span>SRI Master Guide Club</span>
+      <span>Personal use · Local records</span>
+    </footer>
+  </main>
+
+ 
+  <section id="unit-page" class="unit-page hidden">
+    <div class="unit-page-header">
+      <button class="back-button" onclick="showDashboard()">
+        ← Back to Dashboard
+      </button>
+
+      <div class="unit-page-title">
+        <div>
+          <p class="eyebrow">UNIT MANAGEMENT</p>
+          <h1 id="unit-page-name">Unit Name</h1>
+          <p class="subtitle">Manage your campers and their scores.</p>
+        </div>
+
+        <button class="primary-button" onclick="addMemberToActiveUnit()">
+          + Add Camper
+        </button>
+      </div>
+    </div>
+
+    <section class="summary-grid unit-summary-grid">
+      <article class="summary-card">
+        <div class="summary-icon blue">♟</div>
+        <p>Total Campers</p>
+        <h2 id="unit-member-count">0</h2>
+        <span>Registered members</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon green">＋</div>
+        <p>Total Merits</p>
+        <h2 id="unit-merits">0</h2>
+        <span>Points awarded</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon red">−</div>
+        <p>Total Demerits</p>
+        <h2 id="unit-demerits">0</h2>
+        <span>Points deducted</span>
+      </article>
+
+      <article class="summary-card">
+        <div class="summary-icon gold">★</div>
+        <p>Unit Score</p>
+        <h2 id="unit-total-score">0</h2>
+        <span>Current net score</span>
+      </article>
+    </section>
+
+    <section class="record-section">
+      <div class="section-heading"><div><h2>Team Points</h2><p>Give points directly to this unit, not to individual campers.</p></div></div>
+      <button type="button" class="category-manage-button" onclick="manageCategories()">✎ Edit Categories</button>
+      <form id="team-score-form" class="score-form">
+        <div class="form-group"><label for="team-merit-points">Team Merit Points</label><input id="team-merit-points" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="form-group"><label for="team-demerit-points">Team Demerit Points</label><input id="team-demerit-points" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="form-group"><label for="team-score-date">Date</label><input id="team-score-date" type="date" required></div>
+        <div class="full-width" id="team-category-fields"></div>
+        <div class="form-group full-width"><label for="team-score-notes">Additional details (optional)</label><textarea id="team-score-notes" rows="2" placeholder="What did the team do?"></textarea></div>
+        <div class="form-actions"><button class="primary-button" type="submit">Save Team Points</button></div>
+      </form>
+      <h3 class="team-history-heading">Unit Score History — Team &amp; Campers</h3>
+      <div id="team-history" class="history-list"></div>
+    </section>
+
+    <section class="members-section">
+      <div class="section-heading">
+        <div>
+          <h2>Unit Members</h2>
+          <p>Select a camper to view their individual records.</p>
+        </div>
+      </div>
+
+      <div id="members-container" class="members-grid"></div>
+    </section>
+  </section>
+
+
+
+<section id="listing-page" class="unit-page hidden">
+  <header class="topbar"><div><p class="eyebrow">CAMP MANAGEMENT</p><h1 id="listing-title">Campers</h1><p class="subtitle" id="listing-description"></p></div></header>
+  <div id="listing-content"></div>
+</section>
+
+<section id="member-page" class="member-page hidden">
+  <button class="back-button" onclick="showDashboard()">
+    ← Back to Dashboard
+  </button>
+
+  <header class="member-profile-header">
+    <div>
+      <p class="eyebrow">CAMPER PROFILE</p>
+      <h1 id="member-page-name">Camper Name</h1>
+      <p class="subtitle" id="member-page-unit">Unit Name</p>
+    </div>
+  </header>
+
+  <section class="summary-grid member-summary-grid">
+    <article class="summary-card">
+      <div class="summary-icon green">＋</div>
+      <p>Total Merits</p>
+      <h2 id="member-merits">0</h2>
+      <span>Points awarded</span>
+    </article>
+
+    <article class="summary-card">
+      <div class="summary-icon red">−</div>
+      <p>Total Demerits</p>
+      <h2 id="member-demerits">0</h2>
+      <span>Points deducted</span>
+    </article>
+
+    <article class="summary-card">
+      <div class="summary-icon blue">★</div>
+      <p>Net Score</p>
+      <h2 id="member-net-score">0</h2>
+      <span>Current individual score</span>
+    </article>
+  </section>
+
+  <section class="record-section">
+    <div class="section-heading">
+      <div>
+        <h2>Record a Score</h2>
+        <p>Record an individual achievement or demerit.</p>
+      </div>
+    </div>
+
+    <button type="button" class="category-manage-button" onclick="manageCategories()">✎ Edit Categories</button>
+    <form id="score-form" class="score-form">
+      <div class="form-group merit-field">
+        <label for="merit-points">Merit Points (+)</label>
+        <input id="merit-points" type="number" min="0" step="1" placeholder="0">
+      </div>
+      <div class="form-group demerit-field">
+        <label for="demerit-points">Demerit Points (−)</label>
+        <input id="demerit-points" type="number" min="0" step="1" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label for="score-date">Date</label>
+        <input id="score-date" type="date" required>
+      </div>
+      <div class="full-width" id="camper-category-fields"></div>
+      <div class="form-group full-width">
+        <label for="score-notes">Additional details (optional)</label>
+        <textarea id="score-notes" rows="2" placeholder="Optional notes about what happened"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="primary-button">Save Score Record</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="record-section">
+    <div class="section-heading">
+      <div>
+        <h2>Score History</h2>
+        <p>All individual merit and demerit entries.</p>
+      </div>
+    </div>
+
+    <div id="member-history" class="history-list"></div>
+  </section>
+</section>
+
+<div id="app-dialog" class="app-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+  <div class="dialog-panel">
+    <h2 id="dialog-title">Enter a name</h2>
+    <p id="dialog-description"></p>
+    <form id="dialog-form">
+      <label for="dialog-name">Name</label>
+      <input id="dialog-name" type="text" maxlength="120" autocomplete="off" required>
+      <p id="dialog-error" class="dialog-error hidden" role="alert"></p>
+      <div class="dialog-actions"><button type="button" id="dialog-cancel" class="back-button">Cancel</button><button type="submit" class="primary-button">Save</button></div>
+    </form>
+  </div>
+</div>
+<div id="app-error" class="app-dialog hidden" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title">
+  <div class="dialog-panel"><h2 id="app-error-title">Something needs attention</h2><p id="app-error-message"></p><div class="dialog-actions"><button type="button" class="primary-button" id="app-error-close">OK</button></div></div>
+</div>
+<script src="script.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      Promise.reject(new Error("Service worker not bundled in diagnostic test")).catch(error => console.error("Offline setup failed:", error));
+    });
+  }
+</script>
+<script type="module" src="cloud-integration.js"></script>
+<div id="cloud-gate" style="position:fixed;inset:0;background:#eef4f5;z-index:99999;overflow:auto;padding:28px 16px"><div style="max-width:520px;margin:35px auto;background:white;border-radius:16px;padding:24px;box-shadow:0 5px 25px #142b4422"><h2>SRI Master Guide Club — Cloud Management Diagnostic Test</h2><p id="cloud-auth-status">Checking login…</p><form id="cloud-login" hidden><label>Email<input type="email" id="cloud-email" required autocomplete="username" style="width:100%;padding:10px;margin:8px 0 16px"></label><label>Password<input type="password" id="cloud-password" required autocomplete="current-password" style="width:100%;padding:10px;margin:8px 0 16px"></label><button type="submit">Sign in</button></form><p style="font-size:13px">This is a separate test. It does not modify your original website or your phone's original local records. Do not use for official scoring yet.</p></div></div>
+<div id="cloud-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#112e47;color:white;padding:9px 14px;z-index:9999;font:14px system-ui;display:none"><span id="cloud-status">Connecting…</span><button id="cloud-signout" style="float:right;padding:4px 10px">Sign out</button></div></body>
+</html>
