@@ -13,6 +13,31 @@
   <meta name="apple-mobile-web-app-title" content="SRI Master Guide">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="icon" type="image/png" href="icon-192.png">
+<style>
+#cloud-gate{position:fixed;inset:0;z-index:99999;overflow:auto;background:linear-gradient(145deg,#0c2746 0%,#123f58 55%,#0d6970 100%);padding:32px 16px;color:#19314b;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#cloud-gate *{box-sizing:border-box}
+#cloud-gate .login-shell{max-width:940px;margin:min(8vh,72px) auto;display:grid;grid-template-columns:0.95fr 1.05fr;overflow:hidden;border-radius:24px;background:white;box-shadow:0 24px 70px #061b35aa}
+#cloud-gate .login-brand{background:linear-gradient(160deg,#102746,#17576a);color:white;padding:48px 34px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:16px}
+#cloud-gate .login-brand img{width:160px;height:160px;object-fit:contain;filter:drop-shadow(0 6px 12px #0004)}
+#cloud-gate .login-brand h1{font-size:29px;line-height:1.2;margin:0;color:#fff}
+#cloud-gate .login-brand .gold{color:#f2d28b;font-weight:750;font-size:12px;letter-spacing:2px}
+#cloud-gate .login-brand p{margin:0;color:#d6e6ed;line-height:1.6;font-size:14px}
+#cloud-gate .login-panel{padding:52px 46px;display:flex;flex-direction:column;justify-content:center}
+#cloud-gate .login-panel .eyeline{color:#127f81;font-size:12px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+#cloud-gate .login-panel h2{font-size:32px;color:#112c49;margin:10px 0 8px}
+#cloud-gate #cloud-auth-status{color:#546779;font-size:14px;line-height:1.5;margin:0 0 22px;min-height:20px}
+#cloud-gate #cloud-login label{display:block;color:#213a53;font-size:14px;font-weight:700;margin:0 0 18px}
+#cloud-gate #cloud-login input{display:block;width:100%;margin-top:8px;padding:14px 15px;border:1px solid #cad6df;border-radius:10px;background:#fff;color:#132e49;font-size:16px;outline-offset:2px}
+#cloud-gate #cloud-login input:focus{border-color:#13878a;outline:2px solid #13878a33}
+#cloud-gate .password-wrap{position:relative;display:block;margin-top:8px}
+#cloud-gate .password-wrap input{margin-top:0!important;padding-right:78px!important}
+#cloud-gate #toggle-login-password{position:absolute;right:9px;top:50%;transform:translateY(-50%);border:0;border-radius:7px;background:transparent;color:#146a73;font-size:14px;font-weight:700;padding:9px 11px;line-height:1.2;cursor:pointer;z-index:1}#cloud-gate #toggle-login-password:focus-visible{outline:2px solid #13878a;outline-offset:2px}
+#cloud-gate .login-submit{width:100%;padding:15px;border:0;border-radius:10px;background:#0f6774;color:white;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 5px 12px #0e61712b}
+#cloud-gate .login-submit:hover{background:#0c5263}
+#cloud-gate .login-footer{font-size:12px;color:#637687;text-align:center;line-height:1.6;margin-top:24px}
+#cloud-gate .login-footer strong{color:#284d63}
+@media(max-width:700px){#cloud-gate{padding:14px}#cloud-gate .login-shell{margin:12px auto;grid-template-columns:1fr}#cloud-gate .login-brand{padding:25px 20px;gap:9px}#cloud-gate .login-brand img{width:98px;height:98px}#cloud-gate .login-brand h1{font-size:22px}#cloud-gate .login-brand p{display:none}#cloud-gate .login-panel{padding:30px 24px}#cloud-gate .login-panel h2{font-size:27px}}
+</style>
 </head>
 <body>
   <aside class="sidebar">
@@ -31,10 +56,6 @@
       <button class="nav-item" type="button" data-page="reports" onclick="showListing('reports')"><span>▥</span> Reports</button>
     </nav>
 
-    <div style="padding: 12px 16px;">
-      <button type="button" id="export-backup-btn" style="width:100%;padding:12px;border:1px solid #d6b56b;border-radius:8px;background:#f6e8c5;color:#172b46;font-weight:700;cursor:pointer;">Download Data Backup</button>
-      <p style="font-size:12px;line-height:1.4;margin:8px 0;color:#d7e1e9;">Save your backup privately before cloud migration.</p>
-    </div>
     <div class="sidebar-footer">
       <span class="status-dot"></span>
       Personal Camp Records
@@ -42,17 +63,6 @@
   </aside>
 
   <main class="main-content">
-
-<section id="firebase-migration" style="margin:16px;padding:18px;border:2px solid #d6b56b;border-radius:12px;background:#fff;color:#172b46;max-width:700px">
- <h2>Secure Firebase Migration (Preview)</h2>
- <p><strong>Your current records are not changed by this tool.</strong> Sign in with your Firebase administrator account, select your private JSON backup, inspect counts, and upload a staging copy to Firestore. This is NOT yet the live multi-device sync app.</p>
- <p id="migration-status" role="status">Not signed in</p>
- <form id="migration-login"><label>Email <input id="migration-email" type="email" autocomplete="username" required></label><label>Password <input id="migration-password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
- <button id="migration-logout" type="button" hidden>Sign out</button>
- <div id="migration-controls" hidden><p><label>Choose your downloaded JSON backup: <input id="migration-file" type="file" accept=".json,application/json"></label></p><p id="migration-preview">No backup selected.</p><button id="migration-upload" type="button" disabled>Upload staging copy (does not replace current app)</button></div>
- <p style="font-size:13px">Keep your backup file private. Never upload it to GitHub. Staging data is readable only under your published Firestore administrator rules.</p>
-</section>
-
     <header class="topbar">
       <div>
         <p class="eyebrow">CAMP MANAGEMENT</p>
@@ -311,15 +321,31 @@
 <div id="app-error" class="app-dialog hidden" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title">
   <div class="dialog-panel"><h2 id="app-error-title">Something needs attention</h2><p id="app-error-message"></p><div class="dialog-actions"><button type="button" class="primary-button" id="app-error-close">OK</button></div></div>
 </div>
-<script type="module" src="firebase-migration.js"></script>
 <script src="script.js"></script>
-<script src="backup-export.js"></script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js").catch(error => console.error("Offline setup failed:", error));
-    });
-  }
-</script>
-</body>
+<script type="module" src="cloud-integration.js"></script>
+<div id="cloud-gate">
+  <div class="login-shell">
+    <section class="login-brand" aria-label="SRI Master Guide Club">
+      <img src="club-logo.png" alt="SRI Master Guide Club official logo">
+      <h1>SRI Master Guide Club</h1>
+      <div class="gold">MERIT &amp; DEMERIT SYSTEM</div>
+      <p>Recognizing achievement. Encouraging leadership. Keeping every record connected.</p>
+    </section>
+    <section class="login-panel">
+      <span class="eyeline">Secure club portal</span>
+      <h2>Welcome back</h2>
+      <p id="cloud-auth-status" role="status" aria-live="polite">Checking login…</p>
+      <form id="cloud-login" hidden>
+        <label for="cloud-email">Email address<input type="email" id="cloud-email" required autocomplete="username" placeholder="Enter your email address"></label>
+        <label for="cloud-password">Password
+          <span class="password-wrap"><input type="password" id="cloud-password" required autocomplete="current-password" placeholder="Enter your password"><button id="toggle-login-password" type="button" aria-label="Show password" aria-pressed="false">Show</button></span>
+        </label>
+        <button type="submit" class="login-submit">Sign in securely →</button>
+      </form>
+      <p class="login-footer">🔒 <strong>Authorized club administrators only</strong><br>Automatic sign-out after 15 minutes of inactivity.</p>
+    </section>
+  </div>
+</div>
+<script>document.getElementById("toggle-login-password").addEventListener("click",function(){const field=document.getElementById("cloud-password");const show=field.type==="password";field.type=show?"text":"password";this.textContent=show?"Hide":"Show";this.setAttribute("aria-pressed",String(show));this.setAttribute("aria-label",show?"Hide password":"Show password")});</script>
+<div id="cloud-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#112e47;color:white;padding:9px 14px;z-index:9999;font:14px system-ui;display:none"><span id="cloud-status">Connecting…</span><button id="cloud-signout" style="float:right;padding:4px 10px">Sign out</button></div></body>
 </html>
