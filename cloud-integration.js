@@ -5,11 +5,45 @@ const cfg={apiKey:'AIzaSyAtkFjmesPGIoQc9VRysEvJPCmuQ9D5tFI',authDomain:'sri-mast
 const app=initializeApp(cfg),auth=getAuth(app);let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch{db=getFirestore(app)}
 const el=id=>document.getElementById(id);let units=null,campers=null,scores=null,unsubs=[],ready=false,previous=new Map(),busy=false;
 let categoryLoaded=false;
+// Offline queue is scoped to the signed-in administrator and retained across sign-outs.
+const QUEUE_PREFIX='sriClubOfflineScoresV1:';
+let pendingScores=[],syncingQueue=false,queueOwner=null;
+const queueKey=uid=>QUEUE_PREFIX+uid;
+function readQueue(uid){try{const q=JSON.parse(localStorage.getItem(queueKey(uid))||'[]');return Array.isArray(q)?q.filter(x=>x&&x.record&&x.record.id):[]}catch{return []}}
+function persistQueue(){if(!queueOwner)return;localStorage.setItem(queueKey(queueOwner),JSON.stringify(pendingScores))}
+function queuedCount(){return pendingScores.length}
+function showQueueStatus(message){status(message+(queuedCount()?' · '+queuedCount()+' score(s) pending sync':''))}
+function overlayPending(){
+  if(!queueOwner||!auth.currentUser||queueOwner!==auth.currentUser.uid)return;
+  for(const item of pendingScores){
+    const u=campData.units.find(x=>x.id===item.unitId);if(!u)continue;
+    const list=item.targetType==='unit'?u.records:u.members.find(c=>c.id===item.targetId)?.records;
+    if(list&&!list.some(r=>r.id===item.record.id))list.push({...item.record,pendingSync:true});
+  }
+}
+async function syncQueue(){
+  if(syncingQueue||!navigator.onLine||!auth.currentUser||!ready||!queueOwner||queueOwner!==auth.currentUser.uid)return;
+  syncingQueue=true;
+  try{
+    for(const item of [...pendingScores]){
+      if(!auth.currentUser||auth.currentUser.uid!==queueOwner||!navigator.onLine)break;
+      try{
+        // Stable document IDs make retries idempotent even after an uncertain connection failure.
+        await setDoc(doc(db,'clubScores',item.record.id),item.payload);
+        pendingScores=pendingScores.filter(x=>x.record.id!==item.record.id);
+        persistQueue();
+        showQueueStatus('Offline score synchronized to Firebase.');
+      }catch(error){showQueueStatus('Sync paused: '+error.message);break}
+    }
+  }finally{syncingQueue=false;if(ready)apply()}
+}
+window.cloudPendingScoreCount=()=>queuedCount();
+
 const status=t=>{el('cloud-status').textContent=t};
 const gate=t=>{el('cloud-gate').hidden=false;el('cloud-gate').style.display='block';el('cloud-auth-status').textContent=t};
 function maps(){const m=new Map();for(const u of campData.units){for(const r of u.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'unit',targetId:u.id});for(const c of u.members||[])for(const r of c.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'camper',targetId:c.id});}return m;}
-function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
-function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}status(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores · no pending changes');}},err=>status('Firebase error: '+err.message)));}
+function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};overlayPending();previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
+function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}showQueueStatus(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores');if(!snap.metadata.fromCache&&navigator.onLine)void syncQueue();}},err=>status('Firebase error: '+err.message)));}
 unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadataChanges:true},snapshot=>{
   if(!snapshot.exists()){categoryLoaded=true;return}
   const d=snapshot.data();if(!Array.isArray(d.merit)||!Array.isArray(d.demerit)||!d.merit.length||!d.demerit.length)return;
@@ -18,28 +52,30 @@ unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadata
 }
 // Score records use explicit Firestore operations. Never infer deletions from a UI snapshot.
 window.cloudSyncChange=()=>{console.warn('Legacy cloudSyncChange disabled: use cloudSaveScoreRecord/cloudDeleteScoreRecord.');};
-window.cloudSaveScoreRecord=async (record, targetType, targetId, unitId)=>{
-  if(!requireCloud()||!navigator.onLine)throw new Error('Sign in and connect to the internet before recording points.');
+window.cloudSaveScoreRecord=async (record,targetType,targetId,unitId)=>{
+  if(!requireCloud())throw new Error('Sign in and wait for your club data to load.');
   if(!['unit','camper'].includes(targetType)||!record?.id||!unitId||!targetId)throw new Error('Invalid score target.');
-  status('Saving score to Firebase…');
-  try {
-    await setDoc(doc(db,'clubScores',record.id),{
-      targetType,targetId,unitId,type:record.type,points:Number(record.points),
-      date:record.date||'',reason:record.reason||'',
-      clientCreatedAt:new Date().toISOString(),createdBy:auth.currentUser.uid
-    });
-    status('Score saved to Firebase. Waiting for dashboard update…');
-  } catch(error){status('Score save failed: '+error.message);throw error;}
+  if(!queueOwner||queueOwner!==auth.currentUser.uid)throw new Error('Offline storage is not ready for this account.');
+  const payload={targetType,targetId,unitId,type:record.type,points:Number(record.points),date:record.date||'',reason:record.reason||'',clientCreatedAt:new Date().toISOString(),createdBy:auth.currentUser.uid};
+  const item={record:{id:record.id,type:record.type,points:Number(record.points),date:record.date||'',reason:record.reason||''},targetType,targetId,unitId,payload};
+  if(pendingScores.some(x=>x.record.id===record.id))throw new Error('This score is already queued.');
+  // Save locally first, before attempting network. Never claim cloud confirmation yet.
+  pendingScores.push(item);
+  try{persistQueue()}catch(error){pendingScores=pendingScores.filter(x=>x.record.id!==record.id);throw new Error('Unable to store offline score on this device: '+error.message)}
+  apply();showQueueStatus('Score saved on this device. Pending Firebase sync.');
+  if(navigator.onLine)void syncQueue();
+  return {pending:true};
 };
 window.cloudDeleteScoreRecord=async recordId=>{
   if(!requireCloud()||!navigator.onLine)throw new Error('Sign in and connect to the internet before deleting scores.');
+   if(pendingScores.some(x=>x.record.id===recordId))throw new Error('This score is pending sync. Wait until it is synchronized before deleting.');
   status('Deleting score from Firebase…');
   try {await deleteDoc(doc(db,'clubScores',recordId));status('Score deleted from Firebase. Waiting for dashboard update…');}
   catch(error){status('Score deletion failed: '+error.message);throw error;}
 };
 // Non-destructive entity management: each unit/camper is its own Firestore document.
 // Deletion remains disabled until dependent scores can be handled safely.
-function requireCloud(){if(!ready||!auth.currentUser){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
+function requireCloud(){if(!ready||!auth.currentUser||signingOutForIdle){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
 function saveEntity(path,id,data){status('Saving change to cloud…');setDoc(doc(db,path,id),data,{merge:true}).catch(e=>{status('Save error: '+e.message);alert('Cloud save failed: '+e.message)})}
 window.addUnit=()=>{if(!requireCloud())return;openNameDialog('Add Unit','Enter the new unit name:','',name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(u=>u.name.toLowerCase()===n.toLowerCase()))return 'A unit with this name already exists.';saveEntity('clubUnits',createId(),{name:n});})};
 window.renameUnit=id=>{if(!requireCloud())return;const u=units.find(x=>x.id===id);if(!u)return;openNameDialog('Rename Unit','Enter the new unit name:',u.name,name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(x=>x.id!==id&&x.name.toLowerCase()===n.toLowerCase()))return 'Another unit already uses that name.';saveEntity('clubUnits',id,{name:n});})};
@@ -172,9 +208,10 @@ function startIdleMonitor(user){
 }
 function stopIdleMonitor(){if(idleTimer)clearInterval(idleTimer);idleTimer=null;hideIdleWarning();signingOutForIdle=false}
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(auth.currentUser&&lastInteraction)try{localStorage.setItem(activityKey(auth.currentUser.uid),String(lastInteraction))}catch{};return}void idleCheck()});
-window.addEventListener('pageshow',()=>{void idleCheck()});
+window.addEventListener('pageshow',()=>{void idleCheck();if(navigator.onLine)void syncQueue()});
+window.addEventListener('online',()=>{void idleCheck();void syncQueue()});
 window.addEventListener('focus',()=>{void idleCheck()});
 el('cloud-signout').addEventListener('click',()=>{clearActivity(auth.currentUser?.uid);return signOut(auth)});
 window.addEventListener('error',e=>{console.error('Diagnostic page error',e.error||e.message);status('Page error: '+(e.error?.message||e.message))});
 window.addEventListener('unhandledrejection',e=>{console.error('Diagnostic async error',e.reason);status('Async error: '+(e.reason?.message||String(e.reason)))});
-onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
+onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;queueOwner=user.uid;pendingScores=readQueue(user.uid);el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{queueOwner=null;pendingScores=[];stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
