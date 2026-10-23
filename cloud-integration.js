@@ -101,11 +101,23 @@ window.manageCategories=()=>{if(!requireCloud()||!categoryLoaded){alert('Wait fo
   if(!categories.length||categories.some(x=>x.length>80)){showError('Keep at least one category; maximum 80 characters each.');return}
   saveEntity('clubSettings','scoreCategories',{[key]:categories});
 };
-el('cloud-login').addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,el('cloud-email').value.trim(),el('cloud-password').value);el('cloud-password').value=''}catch(err){gate('Sign in failed: '+err.message)}});
+el('cloud-login').addEventListener('submit',async e=>{e.preventDefault();explicitLoginPending=true;try{await signInWithEmailAndPassword(auth,el('cloud-email').value.trim(),el('cloud-password').value);el('cloud-password').value=''}catch(err){explicitLoginPending=false;gate('Sign in failed: '+err.message)}});
 // Auto logout after 15 minutes without interaction. A warning appears during the last minute.
 const IDLE_LIMIT_MS=15*60*1000;
 const IDLE_WARNING_MS=60*1000;
-let lastInteraction=Date.now(),idleTimer=null,warningVisible=false,signingOutForIdle=false;
+let lastInteraction=0,idleTimer=null,warningVisible=false,signingOutForIdle=false,explicitLoginPending=false;
+// Persist activity across Android app suspension and browser restarts.
+const activityKey=uid=>'sriClubLastActivityV2:'+uid;
+function storedActivity(uid){
+  try {const n=Number(localStorage.getItem(activityKey(uid)));return Number.isFinite(n)&&n>0&&n<=Date.now()?n:0}
+  catch{return 0}
+}
+function recordActivity(){
+  lastInteraction=Date.now();
+  try{if(auth.currentUser)localStorage.setItem(activityKey(auth.currentUser.uid),String(lastInteraction))}catch(error){console.warn('Could not persist session activity',error)}
+}
+function clearActivity(uid){try{if(uid)localStorage.removeItem(activityKey(uid))}catch{}}
+
 const idleNotice=document.createElement('div');
 idleNotice.id='idle-logout-warning';
 idleNotice.setAttribute('role','alertdialog');
@@ -120,19 +132,23 @@ function markActivity(){
   // Mouse movement, scrolling, etc. only count as activity when the warning is not shown.
   // During the warning, require an explicit click on "Stay signed in".
   if(warningVisible)return;
-  lastInteraction=Date.now();
+  // Do not let a first tap after a long suspension renew an expired session.
+  if(Date.now()-lastInteraction>=IDLE_LIMIT_MS){void idleCheck();return}
+  recordActivity();
 }
 for(const eventName of ['pointerdown','keydown','touchstart','scroll','mousemove']){
   window.addEventListener(eventName,markActivity,{passive:true});
 }
 el('idle-stay-signed-in').addEventListener('click',()=>{
-  lastInteraction=Date.now();hideIdleWarning();status('Session extended. Automatic sign-out after 15 minutes of inactivity.');
+  if(Date.now()-lastInteraction>=IDLE_LIMIT_MS){void idleCheck();return}
+  recordActivity();hideIdleWarning();status('Session extended. Automatic sign-out after 15 minutes of inactivity.');
 });
 async function idleCheck(){
   if(!auth.currentUser||signingOutForIdle)return;
   const remaining=IDLE_LIMIT_MS-(Date.now()-lastInteraction);
   if(remaining<=0){
     signingOutForIdle=true;hideIdleWarning();
+    const uid=auth.currentUser.uid;clearActivity(uid);gate('Session expired after 15 minutes of inactivity. Sign in again.');
     // Sign-out never deletes local Firestore cache or queued offline writes.
     try{await signOut(auth);gate('Signed out after 15 minutes of inactivity. Sign in to continue.');}
     catch(error){signingOutForIdle=false;status('Automatic sign-out failed: '+error.message)}
@@ -142,10 +158,23 @@ async function idleCheck(){
     el('idle-warning-text').textContent='For security, you will be signed out in '+seconds+' second'+(seconds===1?'':'s')+'. Select Stay signed in to continue.';
   }
 }
-function startIdleMonitor(){lastInteraction=Date.now();signingOutForIdle=false;hideIdleWarning();if(idleTimer)clearInterval(idleTimer);idleTimer=setInterval(idleCheck,1000)}
+function startIdleMonitor(user){
+  signingOutForIdle=false;hideIdleWarning();
+  if(explicitLoginPending){explicitLoginPending=false;recordActivity()}
+  else lastInteraction=storedActivity(user.uid);
+  if(idleTimer)clearInterval(idleTimer);
+  if(!lastInteraction||Date.now()-lastInteraction>=IDLE_LIMIT_MS){
+    // Never display cached private data before an expired session is signed out.
+    lastInteraction=0;void idleCheck();return false;
+  }
+  idleTimer=setInterval(idleCheck,1000);
+  return true;
+}
 function stopIdleMonitor(){if(idleTimer)clearInterval(idleTimer);idleTimer=null;hideIdleWarning();signingOutForIdle=false}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)idleCheck()});
-el('cloud-signout').addEventListener('click',()=>signOut(auth));
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(auth.currentUser&&lastInteraction)try{localStorage.setItem(activityKey(auth.currentUser.uid),String(lastInteraction))}catch{};return}void idleCheck()});
+window.addEventListener('pageshow',()=>{void idleCheck()});
+window.addEventListener('focus',()=>{void idleCheck()});
+el('cloud-signout').addEventListener('click',()=>{clearActivity(auth.currentUser?.uid);return signOut(auth)});
 window.addEventListener('error',e=>{console.error('Diagnostic page error',e.error||e.message);status('Page error: '+(e.error?.message||e.message))});
 window.addEventListener('unhandledrejection',e=>{console.error('Diagnostic async error',e.reason);status('Async error: '+(e.reason?.message||String(e.reason)))});
-onAuthStateChanged(auth,user=>{if(user){startIdleMonitor();el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
+onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
