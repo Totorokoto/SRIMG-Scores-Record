@@ -16,7 +16,27 @@ unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadata
   scoreCategories={merit:d.merit,demerit:d.demerit};categoryLoaded=true;renderCategoryFields();
 },err=>status('Category sync error: '+err.message)));
 }
-window.cloudSyncChange=()=>{if(!ready||!auth.currentUser)return;const next=maps(),writes=[];for(const [id,v] of next){const old=previous.get(id);if(!old||JSON.stringify(old)!==JSON.stringify(v)){const r=v.record;writes.push(setDoc(doc(db,'clubScores',id),{targetType:v.targetType,targetId:v.targetId,unitId:v.unitId,type:r.type,points:Number(r.points),date:r.date||'',reason:r.reason||'',clientCreatedAt:new Date().toISOString(),createdBy:auth.currentUser.uid}));}}for(const id of previous.keys())if(!next.has(id))writes.push(deleteDoc(doc(db,'clubScores',id)));previous=next;if(writes.length){status('Saving '+writes.length+' score change(s); may be pending offline…');for(const p of writes)p.catch(e=>{status('Save error: '+e.message);alert('Cloud save failed: '+e.message)})}};
+// Score records use explicit Firestore operations. Never infer deletions from a UI snapshot.
+window.cloudSyncChange=()=>{console.warn('Legacy cloudSyncChange disabled: use cloudSaveScoreRecord/cloudDeleteScoreRecord.');};
+window.cloudSaveScoreRecord=async (record, targetType, targetId, unitId)=>{
+  if(!requireCloud()||!navigator.onLine)throw new Error('Sign in and connect to the internet before recording points.');
+  if(!['unit','camper'].includes(targetType)||!record?.id||!unitId||!targetId)throw new Error('Invalid score target.');
+  status('Saving score to Firebase…');
+  try {
+    await setDoc(doc(db,'clubScores',record.id),{
+      targetType,targetId,unitId,type:record.type,points:Number(record.points),
+      date:record.date||'',reason:record.reason||'',
+      clientCreatedAt:new Date().toISOString(),createdBy:auth.currentUser.uid
+    });
+    status('Score saved to Firebase. Waiting for dashboard update…');
+  } catch(error){status('Score save failed: '+error.message);throw error;}
+};
+window.cloudDeleteScoreRecord=async recordId=>{
+  if(!requireCloud()||!navigator.onLine)throw new Error('Sign in and connect to the internet before deleting scores.');
+  status('Deleting score from Firebase…');
+  try {await deleteDoc(doc(db,'clubScores',recordId));status('Score deleted from Firebase. Waiting for dashboard update…');}
+  catch(error){status('Score deletion failed: '+error.message);throw error;}
+};
 // Non-destructive entity management: each unit/camper is its own Firestore document.
 // Deletion remains disabled until dependent scores can be handled safely.
 function requireCloud(){if(!ready||!auth.currentUser){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
