@@ -347,9 +347,9 @@ function renderUnitPage() {
     ...(unit.members || []).flatMap(member => (member.records || []).map(record => ({record, camper: member})))
   ].sort((a,b) => (b.record.date || '').localeCompare(a.record.date || ''));
   teamHistory.innerHTML = allRecords.length ? allRecords.map(({record, camper}) => `
-    <article class="history-item"><div><h3>${escapeHTML(record.reason || '')}</h3>
+    <article class="history-item"><div><h3>${escapeHTML(record.reason || '')}${record.pendingSync ? ' ⏳ Pending sync' : ''}</h3>
     <p><strong>${camper ? 'Camper: ' + escapeHTML(camper.name) : 'Whole Unit'}</strong> · ${record.type === 'merit' ? 'Merit' : 'Demerit'} · ${escapeHTML(record.date || '')}</p>
-    ${camper ? '' : `<button type="button" class="delete-record-button" onclick="deleteTeamRecord('${record.id}')">Delete team record</button>`}
+    ${camper || record.pendingSync ? '' : `<button type="button" class="delete-record-button" onclick="deleteTeamRecord('${record.id}')">Delete team record</button>`}
     </div><div class="history-points ${record.type}">${record.type === 'merit' ? '+' : '−'}${Number(record.points)}</div></article>
   `).join('') : '<div class="history-empty">No unit or camper score records yet.</div>';
   const teamDate = document.getElementById("team-score-date");
@@ -452,7 +452,7 @@ function renderMemberPage() {
     history.innerHTML = [...records].reverse().map(record => `
       <article class="history-item">
         <div>
-          <h3>${escapeHTML(record.reason)}</h3>
+          <h3>${escapeHTML(record.reason)}${record.pendingSync ? ' ⏳ Pending sync' : ''}</h3>
           <p>${record.type === "merit" ? "Merit" : "Demerit"} ·
              ${escapeHTML(record.date)}</p>
           <button type="button" class="delete-record-button"
@@ -528,7 +528,7 @@ document.addEventListener("DOMContentLoaded", function () {
       for (const record of newRecords) await window.cloudSaveScoreRecord(record, 'camper', member.id, unit.id);
       form.reset();
       document.getElementById('score-date').value = localDateString();
-    } catch (error) { showError('Firebase did not confirm the save: ' + error.message + '. Check history before retrying.'); }
+    } catch (error) { showError('Score could not be stored: ' + error.message + '. Check history before retrying.'); }
     finally { if (submitButton) submitButton.disabled = false; }
   });
 });
@@ -573,7 +573,7 @@ document.addEventListener("DOMContentLoaded", function () {
       for (const record of added) await window.cloudSaveScoreRecord(record, 'unit', unit.id, unit.id);
       form.reset();
       document.getElementById('team-score-date').value = localDateString();
-    } catch (error) { showError('Firebase did not confirm the save: ' + error.message + '. Check history before retrying.'); }
+    } catch (error) { showError('Score could not be stored: ' + error.message + '. Check history before retrying.'); }
     finally { if (submitButton) submitButton.disabled = false; }
   });
 });
