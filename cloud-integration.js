@@ -5,6 +5,16 @@ const cfg={apiKey:'AIzaSyAtkFjmesPGIoQc9VRysEvJPCmuQ9D5tFI',authDomain:'sri-mast
 const app=initializeApp(cfg),auth=getAuth(app);let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch{db=getFirestore(app)}
 const el=id=>document.getElementById(id);let units=null,campers=null,scores=null,unsubs=[],ready=false,previous=new Map(),busy=false;
 let categoryLoaded=false;
+// UI role is based on Firebase Authentication UID. Firestore Rules remain the authority.
+const ADMIN_UID='sv0NabkovCOC9znAodfytA6liYM2';
+const VIEWER_UID='eicN9qsD6KgDeE3jQwae2JThrME3';
+function isAdmin(){return !!auth.currentUser&&auth.currentUser.uid===ADMIN_UID}
+function updateRoleUI(){
+  document.body.classList.toggle('club-viewer',!isAdmin());
+  document.body.classList.toggle('club-admin',isAdmin());
+  const role=el('club-role-label');if(role)role.textContent=isAdmin()?'Administrator · Editing enabled':'Viewer · Read only';
+}
+window.clubIsAdmin=()=>isAdmin();
 // Offline queue is scoped to the signed-in administrator and retained across sign-outs.
 const QUEUE_PREFIX='sriClubOfflineScoresV1:';
 let pendingScores=[],syncingQueue=false,queueOwner=null;
@@ -22,7 +32,7 @@ function overlayPending(){
   }
 }
 async function syncQueue(){
-  if(syncingQueue||!navigator.onLine||!auth.currentUser||!ready||!queueOwner||queueOwner!==auth.currentUser.uid)return;
+  if(!isAdmin()||syncingQueue||!navigator.onLine||!auth.currentUser||!ready||!queueOwner||queueOwner!==auth.currentUser.uid)return;
   syncingQueue=true;
   try{
     for(const item of [...pendingScores]){
@@ -75,7 +85,7 @@ window.cloudDeleteScoreRecord=async recordId=>{
 };
 // Non-destructive entity management: each unit/camper is its own Firestore document.
 // Deletion remains disabled until dependent scores can be handled safely.
-function requireCloud(){if(!ready||!auth.currentUser||signingOutForIdle){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
+function requireCloud(){if(!isAdmin()){alert('Viewer account: only the administrator can change club records.');return false}if(!ready||!auth.currentUser||signingOutForIdle){alert('Wait for cloud data to load and sign in before editing.');return false}return true}
 function saveEntity(path,id,data){status('Saving change to cloud…');setDoc(doc(db,path,id),data,{merge:true}).catch(e=>{status('Save error: '+e.message);alert('Cloud save failed: '+e.message)})}
 window.addUnit=()=>{if(!requireCloud())return;openNameDialog('Add Unit','Enter the new unit name:','',name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(u=>u.name.toLowerCase()===n.toLowerCase()))return 'A unit with this name already exists.';saveEntity('clubUnits',createId(),{name:n});})};
 window.renameUnit=id=>{if(!requireCloud())return;const u=units.find(x=>x.id===id);if(!u)return;openNameDialog('Rename Unit','Enter the new unit name:',u.name,name=>{const n=name.trim();if(!n)return 'Please enter a unit name.';if(units.some(x=>x.id!==id&&x.name.toLowerCase()===n.toLowerCase()))return 'Another unit already uses that name.';saveEntity('clubUnits',id,{name:n});})};
@@ -214,4 +224,4 @@ window.addEventListener('focus',()=>{void idleCheck()});
 el('cloud-signout').addEventListener('click',()=>{clearActivity(auth.currentUser?.uid);return signOut(auth)});
 window.addEventListener('error',e=>{console.error('Diagnostic page error',e.error||e.message);status('Page error: '+(e.error?.message||e.message))});
 window.addEventListener('unhandledrejection',e=>{console.error('Diagnostic async error',e.reason);status('Async error: '+(e.reason?.message||String(e.reason)))});
-onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;queueOwner=user.uid;pendingScores=readQueue(user.uid);el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{queueOwner=null;pendingScores=[];stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
+onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;updateRoleUI();queueOwner=isAdmin()?user.uid:null;pendingScores=isAdmin()?readQueue(user.uid):[];el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{queueOwner=null;pendingScores=[];updateRoleUI();stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
