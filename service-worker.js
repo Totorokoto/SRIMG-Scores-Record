@@ -1,4 +1,4 @@
-const CACHE_NAME = "sri-master-guide-official-v3-category-loading";
+const CACHE_NAME = "sri-master-guide-official-v4-blue-edit";
 
 const APP_FILES = [
   "./",
