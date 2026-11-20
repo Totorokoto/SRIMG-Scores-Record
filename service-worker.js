@@ -1,4 +1,4 @@
-const CACHE_NAME = "sri-master-guide-official-v2-camper-category";
+const CACHE_NAME = "sri-master-guide-official-v3-category-loading";
 
 const APP_FILES = [
   "./",
