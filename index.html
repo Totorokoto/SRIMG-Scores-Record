@@ -41,6 +41,7 @@
 body.club-viewer #add-unit-btn,
 body.club-viewer .unit-actions,
 body.club-viewer .category-manage-button,
+body.club-viewer .camper-rename-button,
 body.club-viewer #team-score-form,
 body.club-viewer #score-form,
 body.club-viewer .delete-record-button,
@@ -248,6 +249,7 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
     <div>
       <p class="eyebrow">CAMPER PROFILE</p>
       <h1 id="member-page-name">Camper Name</h1>
+      <button type="button" class="small-button camper-rename-button" onclick="renameActiveMember()">✎ Edit Camper Name</button>
       <p class="subtitle" id="member-page-unit">Unit Name</p>
     </div>
   </header>
@@ -334,6 +336,21 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
 </div>
 <div id="app-error" class="app-dialog hidden" role="alertdialog" aria-modal="true" aria-labelledby="app-error-title">
   <div class="dialog-panel"><h2 id="app-error-title">Something needs attention</h2><p id="app-error-message"></p><div class="dialog-actions"><button type="button" class="primary-button" id="app-error-close">OK</button></div></div>
+</div>
+<div id="category-editor" hidden style="position:fixed;inset:0;z-index:100000;background:#071c32bb;overflow:auto;padding:24px 12px">
+  <form id="category-editor-form" style="background:#fff;color:#17304a;max-width:620px;margin:5vh auto;padding:26px;border-radius:16px;box-shadow:0 10px 35px #0004">
+    <h2 style="margin-top:0">Edit Merit &amp; Demerit Categories</h2>
+    <p>Enter one category per line. Existing score records will not be changed.</p>
+    <label for="category-merit-input" style="display:block;font-weight:700;margin:16px 0 7px">Merit categories</label>
+    <textarea id="category-merit-input" rows="7" style="width:100%;box-sizing:border-box;padding:12px;font:inherit;border:1px solid #aebdc9;border-radius:8px" required></textarea>
+    <label for="category-demerit-input" style="display:block;font-weight:700;margin:16px 0 7px">Demerit categories</label>
+    <textarea id="category-demerit-input" rows="7" style="width:100%;box-sizing:border-box;padding:12px;font:inherit;border:1px solid #aebdc9;border-radius:8px" required></textarea>
+    <p id="category-editor-error" role="alert" style="color:#a21d30"></p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px">
+      <button id="category-editor-save" type="submit" class="primary-button">Save Categories</button>
+      <button id="category-editor-cancel" type="button" class="small-button">Cancel</button>
+    </div>
+  </form>
 </div>
 <script src="script.js"></script>
   <script>
