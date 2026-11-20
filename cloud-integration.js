@@ -5,6 +5,7 @@ const cfg={apiKey:'AIzaSyAtkFjmesPGIoQc9VRysEvJPCmuQ9D5tFI',authDomain:'sri-mast
 const app=initializeApp(cfg),auth=getAuth(app);let db;try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch{db=getFirestore(app)}
 const el=id=>document.getElementById(id);let units=null,campers=null,scores=null,unsubs=[],ready=false,previous=new Map(),busy=false;
 let categoryLoaded=false;
+let categoryWarning="";
 // UI role is based on Firebase Authentication UID. Firestore Rules remain the authority.
 const ADMIN_UID='sv0NabkovCOC9znAodfytA6liYM2';
 const VIEWER_UID='eicN9qsD6KgDeE3jQwae2JThrME3';
@@ -55,10 +56,33 @@ function maps(){const m=new Map();for(const u of campData.units){for(const r of 
 function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};overlayPending();previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
 function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}showQueueStatus(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores');if(!snap.metadata.fromCache&&navigator.onLine)void syncQueue();}},err=>status('Firebase error: '+err.message)));}
 unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadataChanges:true},snapshot=>{
-  if(!snapshot.exists()){categoryLoaded=true;renderCategoryFields();return}
-  const d=snapshot.data();if(!Array.isArray(d.merit)||!Array.isArray(d.demerit)||!d.merit.length||!d.demerit.length)return;
-  scoreCategories={merit:d.merit,demerit:d.demerit};categoryLoaded=true;renderCategoryFields();
-},err=>status('Category sync error: '+err.message)));
+  categoryWarning='';
+  if(!snapshot.exists()){
+    // New installations can use the app's built-in categories until the admin saves them.
+    categoryLoaded=true;renderCategoryFields();return;
+  }
+  const d=snapshot.data()||{};
+  const valid=list=>Array.isArray(list)&&list.length>0&&list.every(x=>typeof x==='string'&&x.trim().length>0);
+  if(valid(d.merit)&&valid(d.demerit)){
+    scoreCategories={merit:[...d.merit],demerit:[...d.demerit]};
+  }else{
+    // Do not leave the editor permanently locked when settings are incomplete.
+    // Preserve any valid category list and use the current defaults for an invalid one.
+    scoreCategories={
+      merit:valid(d.merit)?[...d.merit]:[...DEFAULT_CATEGORIES.merit],
+      demerit:valid(d.demerit)?[...d.demerit]:[...DEFAULT_CATEGORIES.demerit]
+    };
+    categoryWarning='Firebase category settings are incomplete. Review BOTH lists before saving; saving will replace the stored merit and demerit lists.';
+    console.warn('Category settings incomplete; administrator review required.');
+  }
+  categoryLoaded=true;
+  renderCategoryFields();
+},err=>{
+  categoryLoaded=false;
+  categoryWarning='Category sync error: '+err.message;
+  console.error(categoryWarning,err);
+  status(categoryWarning);
+}));
 }
 // Score records use explicit Firestore operations. Never infer deletions from a UI snapshot.
 window.cloudSyncChange=()=>{console.warn('Legacy cloudSyncChange disabled: use cloudSaveScoreRecord/cloudDeleteScoreRecord.');};
@@ -146,7 +170,7 @@ function openCategoryEditor(){
   const dialog=el('category-editor');
   el('category-merit-input').value=scoreCategories.merit.join('\n');
   el('category-demerit-input').value=scoreCategories.demerit.join('\n');
-  el('category-editor-error').textContent='';
+  el('category-editor-error').textContent=categoryWarning;
   dialog.hidden=false;
   el('category-merit-input').focus();
 }
