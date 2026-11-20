@@ -52,6 +52,31 @@ body.club-viewer button[onclick*="deleteUnit"],
 body.club-viewer button[onclick*="deleteMember"]{display:none!important}
 body.club-viewer .record-section:has(> #score-form),
 body.club-viewer .record-section:has(> #team-score-form){display:none!important}
+
+/* Compact blue camper name editor button (admin only). */
+.camper-rename-button.small-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  height: auto;
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #176c91;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.camper-rename-button.small-button:hover { background: #104e6d; }
+.camper-rename-button.small-button:focus-visible { outline: 3px solid #d1a347; outline-offset: 2px; }
+.quick-row > div:last-child { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.quick-row > div:last-child .primary-button { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -249,7 +274,7 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
     <div>
       <p class="eyebrow">CAMPER PROFILE</p>
       <h1 id="member-page-name">Camper Name</h1>
-      <button type="button" class="small-button camper-rename-button" onclick="renameActiveMember()">✎ Edit Camper Name</button>
+      <button type="button" class="small-button camper-rename-button" onclick="renameActiveMember()">✎ Edit Name</button>
       <p class="subtitle" id="member-page-unit">Unit Name</p>
     </div>
   </header>
