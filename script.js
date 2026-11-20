@@ -276,7 +276,7 @@ function renderListing() {
   if (currentListing === 'campers') {
     container.innerHTML = campData.units.map(unit => `<section class="record-section"><div class="section-heading"><h2>${escapeHTML(unit.name)}</h2><span>${(unit.members || []).length} campers</span></div><div class="quick-list">${(unit.members || []).length ? unit.members.map(member => {
       const totals = getRecordTotals(member.records);
-      return `<div class="quick-row"><div><strong>${escapeHTML(member.name)}</strong><p>Merits: ${totals.merits} · Demerits: ${totals.demerits} · Net: ${totals.merits - totals.demerits}</p></div><button type="button" class="primary-button" onclick="openMemberFromList('${unit.id}','${member.id}')">Record Points</button></div>`;
+      return `<div class="quick-row"><div><strong>${escapeHTML(member.name)}</strong><p>Merits: ${totals.merits} · Demerits: ${totals.demerits} · Net: ${totals.merits - totals.demerits}</p></div><div><button type="button" class="small-button camper-rename-button" onclick="renameMember('${unit.id}','${member.id}')">✎ Edit Name</button> <button type="button" class="primary-button" onclick="openMemberFromList('${unit.id}','${member.id}')">Record Points</button></div></div>`;
     }).join('') : '<p>No campers in this unit yet.</p>'}</div></section>`).join('');
   } else if (currentListing === 'units') {
     container.innerHTML = `<div class="units-grid">${campData.units.map(unit => `<article class="unit-card"><h3>${escapeHTML(unit.name)}</h3><p class="member-count">${(unit.members || []).length} campers</p><div class="unit-score-row"><span>Combined score</span><strong>${calculateUnitScore(unit)} pts</strong></div><button type="button" class="open-unit-button" onclick="openUnit('${unit.id}')">Team Points →</button></article>`).join('')}</div>`;
@@ -386,6 +386,7 @@ function renderUnitPage() {
           <p>${(member.records || []).length} score record(s)</p>
         </div>
         <div class="member-score">${score} pts</div>
+        <button class="small-button camper-rename-button" onclick="renameMember('${unit.id}','${member.id}')">✎ Edit Name</button>
         <button class="member-open-button"
           onclick="openMember('${member.id}')">View</button>
       </article>`;
