@@ -55,7 +55,7 @@ function maps(){const m=new Map();for(const u of campData.units){for(const r of 
 function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};overlayPending();previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
 function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}showQueueStatus(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores');if(!snap.metadata.fromCache&&navigator.onLine)void syncQueue();}},err=>status('Firebase error: '+err.message)));}
 unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadataChanges:true},snapshot=>{
-  if(!snapshot.exists()){categoryLoaded=true;return}
+  if(!snapshot.exists()){categoryLoaded=true;renderCategoryFields();return}
   const d=snapshot.data();if(!Array.isArray(d.merit)||!Array.isArray(d.demerit)||!d.merit.length||!d.demerit.length)return;
   scoreCategories={merit:d.merit,demerit:d.demerit};categoryLoaded=true;renderCategoryFields();
 },err=>status('Category sync error: '+err.message)));
@@ -139,14 +139,52 @@ window.deleteUnit=id=>verifiedEmptyDelete('unit',id);
 window.deleteMember=id=>verifiedEmptyDelete('camper',id);
 // Keep scoring category definitions synchronized as one shared Firestore document.
 // The document is only written after the administrator explicitly edits categories.
-window.manageCategories=()=>{if(!requireCloud()||!categoryLoaded){alert('Wait for categories to load.');return}
-  const type=prompt('Which categories would you like to edit? Type MERIT or DEMERIT:');if(type===null)return;
-  const key=type.trim().toLowerCase();if(key!=='merit'&&key!=='demerit'){showError('Please enter MERIT or DEMERIT.');return}
-  const answer=prompt(`Edit ${key} categories. Enter one category per line:`,scoreCategories[key].join('\n'));if(answer===null)return;
-  const categories=[...new Set(answer.split(/\r?\n/).map(x=>x.trim()).filter(Boolean))];
-  if(!categories.length||categories.some(x=>x.length>80)){showError('Keep at least one category; maximum 80 characters each.');return}
-  saveEntity('clubSettings','scoreCategories',{[key]:categories});
+// A multiline editor avoids browser prompt() collapsing line breaks.
+function openCategoryEditor(){
+  if(!requireCloud())return;
+  if(!categoryLoaded){alert('Wait for categories to finish loading.');return}
+  const dialog=el('category-editor');
+  el('category-merit-input').value=scoreCategories.merit.join('\n');
+  el('category-demerit-input').value=scoreCategories.demerit.join('\n');
+  el('category-editor-error').textContent='';
+  dialog.hidden=false;
+  el('category-merit-input').focus();
+}
+window.manageCategories=openCategoryEditor;
+function closeCategoryEditor(){el('category-editor').hidden=true}
+el('category-editor-cancel').addEventListener('click',closeCategoryEditor);
+el('category-editor-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!requireCloud()||!categoryLoaded)return;
+  const parse=id=>[...new Set(el(id).value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean))];
+  const merit=parse('category-merit-input'),demerit=parse('category-demerit-input');
+  const error=el('category-editor-error');
+  if(!merit.length||!demerit.length){error.textContent='Keep at least one merit and one demerit category.';return}
+  if([...merit,...demerit].some(x=>x.length>80)){error.textContent='Each category must be 80 characters or fewer.';return}
+  if(!navigator.onLine){error.textContent='Connect to the internet before changing categories.';return}
+  const button=el('category-editor-save');button.disabled=true;button.textContent='Saving…';
+  try{
+    await setDoc(doc(db,'clubSettings','scoreCategories'),{merit,demerit},{merge:true});
+    status('Merit and demerit categories saved to Firebase.');
+    closeCategoryEditor();
+  }catch(e){error.textContent='Could not save categories: '+e.message;status('Category save error: '+e.message)}
+  finally{button.disabled=false;button.textContent='Save Categories'}
+});
+window.renameMember=(unitId,memberId)=>{
+  if(!requireCloud())return;
+  const member=campers?.find(c=>c.id===memberId&&c.unitId===unitId);
+  if(!member){alert('Camper not found. Refresh and try again.');return}
+  openNameDialog('Edit Camper Name','Update this camper’s name without changing score records:',member.name,name=>{
+    const clean=name.trim();
+    if(!clean)return 'Camper name cannot be empty.';
+    if(clean.length>120)return 'Camper name must be 120 characters or fewer.';
+    if(campers.some(c=>c.id!==memberId&&c.unitId===unitId&&c.name.toLowerCase()===clean.toLowerCase()))return 'Another camper in this unit already uses that name.';
+    if(clean===member.name)return;
+    if(!navigator.onLine)return 'Connect to the internet before renaming a camper.';
+    saveEntity('clubCampers',memberId,{name:clean});
+  });
 };
+window.renameActiveMember=()=>{if(activeUnitId&&activeMemberId)window.renameMember(activeUnitId,activeMemberId)};
 el('cloud-login').addEventListener('submit',async e=>{e.preventDefault();explicitLoginPending=true;try{await signInWithEmailAndPassword(auth,el('cloud-email').value.trim(),el('cloud-password').value);el('cloud-password').value=''}catch(err){explicitLoginPending=false;gate('Sign in failed: '+err.message)}});
 // Auto logout after 15 minutes without interaction. A warning appears during the last minute.
 const IDLE_LIMIT_MS=15*60*1000;
