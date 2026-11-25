@@ -887,3 +887,7 @@ button {
 #announcement-error {color:#b42318;}
 #announcement-edit[hidden],#announcement-form[hidden],body.club-viewer #announcement-edit,body.club-viewer #announcement-form {display:none!important;}
 @media(max-width:450px){.dashboard-summary{grid-template-columns:1fr}.member-card{grid-template-columns:43px minmax(0,1fr)}.member-score{grid-column:2}.member-card-actions{grid-column:1/-1}}
+
+.announcement-card {border:1px solid #d5dce4;border-radius:10px;padding:14px;margin:12px 0;overflow-wrap:anywhere;}
+.announcement-message {white-space:pre-wrap;margin:8px 0;}
+.announcement-card .announcement-actions {margin-top:10px;}
