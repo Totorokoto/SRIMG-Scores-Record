@@ -1,4 +1,4 @@
-const CACHE_NAME = "sri-master-guide-official-v4-blue-edit";
+const CACHE_NAME = "sri-master-guide-official-v5-live-announcement";
 
 const APP_FILES = [
   "./",
