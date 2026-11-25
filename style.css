@@ -865,3 +865,25 @@ button {
 .dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
 .dialog-actions .back-button { margin:0; }
 .dialog-error { color:#bb3c32 !important; margin:10px 0 0 !important; font-weight:600; }
+
+/* Responsive camper cards and dashboard announcement */
+.dashboard-summary {grid-template-columns:repeat(2,minmax(0,1fr));}
+.members-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%, 310px),1fr));}
+.member-card {display:grid;grid-template-columns:43px minmax(0,1fr) auto;gap:12px;min-width:0;}
+.member-info h3 {word-break:normal;overflow-wrap:break-word;}
+.member-card-actions {grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.quick-row {flex-wrap:wrap;}
+.quick-row > div:first-child {flex:1 1 200px;min-width:0;overflow-wrap:break-word;}
+.quick-row > div:last-child {max-width:100%;}
+.member-profile-header h1 {overflow-wrap:break-word;}
+.announcement-panel {margin:0 0 24px;min-width:0;}
+.announcement-panel .section-heading {flex-wrap:wrap;gap:12px;}
+#announcement-body {white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;}
+#announcement-title {overflow-wrap:anywhere;}
+#announcement-status {font-size:13px;color:var(--muted);}
+#announcement-form:not([hidden]) {display:grid;gap:10px;margin-top:16px;}
+#announcement-form input,#announcement-form textarea {width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit;}
+.announcement-actions {display:flex;flex-wrap:wrap;gap:8px;}
+#announcement-error {color:#b42318;}
+#announcement-edit[hidden],#announcement-form[hidden],body.club-viewer #announcement-edit,body.club-viewer #announcement-form {display:none!important;}
+@media(max-width:450px){.dashboard-summary{grid-template-columns:1fr}.member-card{grid-template-columns:43px minmax(0,1fr)}.member-score{grid-column:2}.member-card-actions{grid-column:1/-1}}
