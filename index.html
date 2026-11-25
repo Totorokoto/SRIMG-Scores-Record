@@ -121,26 +121,12 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
       <div class="trophy-icon">🏆</div>
     </section>
 
-    <section class="summary-grid">
+    <section class="summary-grid dashboard-summary">
       <article class="summary-card">
         <div class="summary-icon blue">▦</div>
         <p>Total Units</p>
         <h2 id="total-units">0</h2>
         <span>Registered units</span>
-      </article>
-
-      <article class="summary-card">
-        <div class="summary-icon green">＋</div>
-        <p>Total Merits</p>
-        <h2 id="total-merits">0</h2>
-        <span>Points awarded</span>
-      </article>
-
-      <article class="summary-card">
-        <div class="summary-icon red">−</div>
-        <p>Total Demerits</p>
-        <h2 id="total-demerits">0</h2>
-        <span>Points deducted</span>
       </article>
 
       <article class="summary-card">
@@ -151,6 +137,17 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
       </article>
     </section>
 
+    <section class="record-section announcement-panel">
+      <div class="section-heading"><h2>Club Announcement</h2><button type="button" id="announcement-edit" class="primary-button" hidden>Edit Announcement</button></div>
+      <p id="announcement-status" role="status">Loading announcement…</p>
+      <h3 id="announcement-title"></h3><p id="announcement-body"></p>
+      <form id="announcement-form" hidden>
+        <label for="announcement-title-input">Title</label><input id="announcement-title-input" maxlength="120" required>
+        <label for="announcement-body-input">Message</label><textarea id="announcement-body-input" maxlength="4000" rows="5" required></textarea>
+        <div class="announcement-actions"><button class="primary-button" type="submit" id="announcement-save">Save Announcement</button><button type="button" id="announcement-cancel">Cancel</button></div>
+        <p id="announcement-error" role="alert"></p>
+      </form>
+    </section>
     <section class="units-section">
       <div class="section-heading">
         <div>
