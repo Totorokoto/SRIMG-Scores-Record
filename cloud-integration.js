@@ -53,8 +53,8 @@ window.cloudPendingScoreCount=()=>queuedCount();
 const status=t=>{el('cloud-status').textContent=t};
 const gate=t=>{el('cloud-gate').hidden=false;el('cloud-gate').style.display='block';el('cloud-auth-status').textContent=t};
 function maps(){const m=new Map();for(const u of campData.units){for(const r of u.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'unit',targetId:u.id});for(const c of u.members||[])for(const r of c.records||[])m.set(r.id,{record:r,unitId:u.id,targetType:'camper',targetId:c.id});}return m;}
-function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};overlayPending();previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
-function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}showQueueStatus(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores');if(!snap.metadata.fromCache&&navigator.onLine)void syncQueue();}},err=>status('Firebase error: '+err.message)));}
+function apply(){if(!ready||busy)return;const oldUnit=activeUnitId,oldMember=typeof activeMemberId!=='undefined'?activeMemberId:null;const arr=units.map(u=>({id:u.id,name:u.name,members:campers.filter(c=>c.unitId===u.id).map(c=>({id:c.id,name:c.name,records:[]})),records:[]}));for(const s of scores){const u=arr.find(x=>x.id===s.unitId);if(!u)continue;const r={id:s.id,type:s.type,points:s.points,date:s.date||String(s.clientCreatedAt||'').slice(0,10),reason:s.reason||''};if(s.targetType==='unit')u.records.push(r);else{const c=u.members.find(x=>x.id===s.targetId);if(c)c.records.push(r);}}campData={units:arr};overlayPending();previous=maps();try{localStorage.setItem('sriCloudIntegrationTestDataV1',JSON.stringify(campData))}catch{}renderDashboard();if(!el("listing-page").classList.contains("hidden"))renderListing();if(oldUnit&&arr.some(u=>u.id===oldUnit)){try{renderUnitPage()}catch{}}if(oldMember){try{renderMemberPage()}catch{}}status('Cloud loaded: '+arr.length+' units, '+campers.length+' campers, '+scores.length+' scores.');}
+function subscribe(){status('Checking Firestore collections…');unsubs.forEach(f=>f());unsubs=[];ready=false;categoryLoaded=false;units=campers=scores=null;for(const [name,assign] of [['clubUnits',v=>units=v],['clubCampers',v=>campers=v],['clubScores',v=>scores=v]]){unsubs.push(onSnapshot(collection(db,name),{includeMetadataChanges:true},snap=>{assign(snap.docs.map(d=>({id:d.id,...d.data()})));if(units&&campers&&scores){ready=true;try{apply()}catch(e){console.error("Dashboard processing error",e);status("Dashboard error: "+e.message);return}showQueueStatus(snap.metadata.hasPendingWrites?'Changes waiting to sync…':snap.metadata.fromCache?'Showing cached data; server not confirmed.':'Cloud connected · '+scores.length+' scores');if(!snap.metadata.fromCache&&navigator.onLine&&queuedCount())void syncQueue();}},err=>status('Firebase error: '+err.message)));}
 unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadataChanges:true},snapshot=>{
   categoryWarning='';
   if(!snapshot.exists()){
@@ -84,6 +84,41 @@ unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadata
   status(categoryWarning);
 }));
 }
+let announcement=null, announcementReady=false, announcementSaving=false;
+const announcementRef=()=>doc(db,'clubSettings','dashboardAnnouncement');
+function renderAnnouncement(){
+  el('announcement-title').textContent=announcement?.title||'';
+  el('announcement-body').textContent=announcement?.body||'';
+  el('announcement-edit').hidden=!(isAdmin()&&announcementReady);
+  el('announcement-edit').textContent=announcement?'Edit Announcement':'Add Announcement';
+}
+function resetAnnouncement(){announcement=null;announcementReady=false;el('announcement-form').hidden=true;el('announcement-error').textContent='';el('announcement-status').textContent='Loading announcement…';renderAnnouncement()}
+function subscribeAnnouncement(){
+  resetAnnouncement();
+  unsubs.push(onSnapshot(announcementRef(),{includeMetadataChanges:true},snap=>{
+    announcement=snap.exists()?snap.data():null;
+    announcementReady=!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;
+    el('announcement-status').textContent=snap.metadata.hasPendingWrites?'Saving announcement…':snap.metadata.fromCache?'Showing cached announcement; waiting for server.':announcement?'':'No announcement yet.';
+    renderAnnouncement();
+  },err=>{announcementReady=false;el('announcement-status').textContent='Announcement loading failed: '+err.message;renderAnnouncement()}));
+}
+el('announcement-edit').addEventListener('click',()=>{
+  if(!requireCloud()||!announcementReady)return;
+  el('announcement-title-input').value=announcement?.title||'';
+  el('announcement-body-input').value=announcement?.body||'';
+  el('announcement-error').textContent='';el('announcement-form').hidden=false;
+});
+el('announcement-cancel').addEventListener('click',()=>{if(!announcementSaving)el('announcement-form').hidden=true});
+el('announcement-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(announcementSaving||!requireCloud())return;
+  const error=el('announcement-error'),title=el('announcement-title-input').value.trim(),body=el('announcement-body-input').value.trim();
+  if(!title||!body||title.length>120||body.length>4000){error.textContent='Enter a title and message within the length limits.';return}
+  if(!navigator.onLine||!announcementReady){error.textContent='Connect to Firebase before saving.';return}
+  announcementSaving=true;el('announcement-save').disabled=true;error.textContent='';
+  try{await setDoc(announcementRef(),{title,body,updatedAt:new Date().toISOString()});el('announcement-form').hidden=true}
+  catch(err){error.textContent='Save failed: '+err.message}
+  finally{announcementSaving=false;el('announcement-save').disabled=false}
+});
 // Score records use explicit Firestore operations. Never infer deletions from a UI snapshot.
 window.cloudSyncChange=()=>{console.warn('Legacy cloudSyncChange disabled: use cloudSaveScoreRecord/cloudDeleteScoreRecord.');};
 window.cloudSaveScoreRecord=async (record,targetType,targetId,unitId)=>{
@@ -286,4 +321,4 @@ window.addEventListener('focus',()=>{void idleCheck()});
 el('cloud-signout').addEventListener('click',()=>{clearActivity(auth.currentUser?.uid);return signOut(auth)});
 window.addEventListener('error',e=>{console.error('Diagnostic page error',e.error||e.message);status('Page error: '+(e.error?.message||e.message))});
 window.addEventListener('unhandledrejection',e=>{console.error('Diagnostic async error',e.reason);status('Async error: '+(e.reason?.message||String(e.reason)))});
-onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;updateRoleUI();queueOwner=isAdmin()?user.uid:null;pendingScores=isAdmin()?readQueue(user.uid):[];el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{queueOwner=null;pendingScores=[];updateRoleUI();stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
+onAuthStateChanged(auth,user=>{if(user){if(!startIdleMonitor(user))return;updateRoleUI();queueOwner=isAdmin()?user.uid:null;pendingScores=isAdmin()?readQueue(user.uid):[];el('cloud-gate').style.display='none';el('cloud-bar').style.display='block';try{subscribe();subscribeAnnouncement()}catch(e){console.error('Subscription startup error',e);status('Subscription error: '+e.message)}Promise.all(['clubUnits','clubCampers','clubScores'].map(n=>getDocs(collection(db,n)))).then(v=>{if(!ready)status('Direct Firestore read: '+v.map((s,i)=>['units','campers','scores'][i]+' '+s.size).join(', ')+'; live listener not ready')}).catch(e=>{status('Firestore read error: '+e.message);console.error(e)})}else{queueOwner=null;pendingScores=[];updateRoleUI();stopIdleMonitor();unsubs.forEach(f=>f());unsubs=[];ready=false;resetAnnouncement();el('cloud-bar').style.display='none';el('cloud-login').hidden=false;gate('Sign in with your Firebase administrator account.')}});
