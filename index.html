@@ -138,9 +138,9 @@ body.club-viewer .record-section:has(> #team-score-form){display:none!important}
     </section>
 
     <section class="record-section announcement-panel">
-      <div class="section-heading"><h2>Club Announcement</h2><button type="button" id="announcement-edit" class="primary-button" hidden>Edit Announcement</button></div>
+      <div class="section-heading"><h2>Club Announcements</h2><button type="button" id="announcement-edit" class="primary-button" hidden>Add Announcement</button></div>
       <p id="announcement-status" role="status">Loading announcement…</p>
-      <h3 id="announcement-title"></h3><p id="announcement-body"></p>
+      <div id="announcement-list"></div>
       <form id="announcement-form" hidden>
         <label for="announcement-title-input">Title</label><input id="announcement-title-input" maxlength="120" required>
         <label for="announcement-body-input">Message</label><textarea id="announcement-body-input" maxlength="4000" rows="5" required></textarea>
