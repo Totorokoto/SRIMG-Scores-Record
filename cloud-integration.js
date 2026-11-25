@@ -84,40 +84,44 @@ unsubs.push(onSnapshot(doc(db,'clubSettings','scoreCategories'),{includeMetadata
   status(categoryWarning);
 }));
 }
-let announcement=null, announcementReady=false, announcementSaving=false;
-const announcementRef=()=>doc(db,'clubSettings','dashboardAnnouncement');
+let announcements=[],legacyAnnouncement=null,announcementReady=false,legacyReady=false,announcementSaving=false,editingAnnouncement=null;
+const legacyRef=()=>doc(db,'clubSettings','dashboardAnnouncement');
+const announcementRef=id=>id==='legacy'?legacyRef():doc(db,'clubAnnouncements',id);
 function renderAnnouncement(){
-  el('announcement-title').textContent=announcement?.title||'';
-  el('announcement-body').textContent=announcement?.body||'';
-  el('announcement-edit').hidden=!(isAdmin()&&announcementReady);
-  el('announcement-edit').textContent=announcement?'Edit Announcement':'Add Announcement';
+  const list=el('announcement-list');list.replaceChildren();
+  const entries=[...announcements,...(legacyAnnouncement?[{...legacyAnnouncement,id:'legacy'}]:[])].sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')));
+  const editable=isAdmin()&&announcementReady&&legacyReady&&navigator.onLine;
+  el('announcement-edit').hidden=!editable;
+  for(const item of entries){
+    const card=document.createElement('article');card.className='announcement-card';
+    const title=document.createElement('h3');title.textContent=item.title||'';
+    const body=document.createElement('p');body.className='announcement-message';body.textContent=item.body||'';
+    const date=document.createElement('small');const stamp=item.createdAt||item.updatedAt;date.textContent=stamp?new Date(stamp).toLocaleString():'';
+    card.append(title,body,date);
+    if(editable){const actions=document.createElement('div');actions.className='announcement-actions';
+      const edit=document.createElement('button');edit.type='button';edit.textContent='Edit';edit.className='primary-button';edit.onclick=()=>openAnnouncement(item);
+      const del=document.createElement('button');del.type='button';del.textContent='Delete';del.onclick=async()=>{if(!requireCloud()||!navigator.onLine||!confirm('Delete this announcement?'))return;del.disabled=true;try{await deleteDoc(announcementRef(item.id))}catch(e){alert('Delete failed: '+e.message);del.disabled=false}};
+      actions.append(edit,del);card.append(actions);
+    }list.append(card);
+  }
+  el('announcement-status').textContent=editable||announcementReady&&legacyReady?(entries.length?'':'No announcements yet.'):'Showing saved announcements when available; waiting for connection.';
 }
-function resetAnnouncement(){announcement=null;announcementReady=false;el('announcement-form').hidden=true;el('announcement-error').textContent='';el('announcement-status').textContent='Loading announcement…';renderAnnouncement()}
-function subscribeAnnouncement(){
-  resetAnnouncement();
-  unsubs.push(onSnapshot(announcementRef(),{includeMetadataChanges:true},snap=>{
-    announcement=snap.exists()?snap.data():null;
-    announcementReady=!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;
-    el('announcement-status').textContent=snap.metadata.hasPendingWrites?'Saving announcement…':snap.metadata.fromCache?'Showing cached announcement; waiting for server.':announcement?'':'No announcement yet.';
-    renderAnnouncement();
-  },err=>{announcementReady=false;el('announcement-status').textContent='Announcement loading failed: '+err.message;renderAnnouncement()}));
+function resetAnnouncement(){announcements=[];legacyAnnouncement=null;announcementReady=legacyReady=false;editingAnnouncement=null;el('announcement-form').hidden=true;el('announcement-error').textContent='';renderAnnouncement()}
+function subscribeAnnouncement(){resetAnnouncement();
+  const fail=e=>{announcementReady=legacyReady=false;renderAnnouncement();el('announcement-status').textContent='Announcement loading failed: '+e.message};
+  unsubs.push(onSnapshot(collection(db,'clubAnnouncements'),{includeMetadataChanges:true},snap=>{announcements=snap.docs.map(d=>({...d.data(),id:d.id}));announcementReady=!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;renderAnnouncement()},fail));
+  unsubs.push(onSnapshot(legacyRef(),{includeMetadataChanges:true},snap=>{legacyAnnouncement=snap.exists()?snap.data():null;legacyReady=!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;renderAnnouncement()},fail));
 }
-el('announcement-edit').addEventListener('click',()=>{
-  if(!requireCloud()||!announcementReady)return;
-  el('announcement-title-input').value=announcement?.title||'';
-  el('announcement-body-input').value=announcement?.body||'';
-  el('announcement-error').textContent='';el('announcement-form').hidden=false;
-});
+function openAnnouncement(item){if(!requireCloud()||!announcementReady||!legacyReady||!navigator.onLine)return;editingAnnouncement=item;el('announcement-title-input').value=item?.title||'';el('announcement-body-input').value=item?.body||'';el('announcement-error').textContent='';el('announcement-form').hidden=false}
+el('announcement-edit').addEventListener('click',()=>openAnnouncement(null));
 el('announcement-cancel').addEventListener('click',()=>{if(!announcementSaving)el('announcement-form').hidden=true});
-el('announcement-form').addEventListener('submit',async e=>{
-  e.preventDefault();if(announcementSaving||!requireCloud())return;
-  const error=el('announcement-error'),title=el('announcement-title-input').value.trim(),body=el('announcement-body-input').value.trim();
-  if(!title||!body||title.length>120||body.length>4000){error.textContent='Enter a title and message within the length limits.';return}
-  if(!navigator.onLine||!announcementReady){error.textContent='Connect to Firebase before saving.';return}
-  announcementSaving=true;el('announcement-save').disabled=true;error.textContent='';
-  try{await setDoc(announcementRef(),{title,body,updatedAt:new Date().toISOString()});el('announcement-form').hidden=true}
-  catch(err){error.textContent='Save failed: '+err.message}
-  finally{announcementSaving=false;el('announcement-save').disabled=false}
+window.addEventListener('online',renderAnnouncement);window.addEventListener('offline',renderAnnouncement);
+el('announcement-form').addEventListener('submit',async e=>{e.preventDefault();if(announcementSaving||!requireCloud())return;
+ const error=el('announcement-error'),title=el('announcement-title-input').value.trim(),body=el('announcement-body-input').value.trim();
+ if(!title||!body||title.length>120||body.length>4000){error.textContent='Enter a valid title and message.';return}
+ if(!navigator.onLine||!announcementReady||!legacyReady){error.textContent='Connect to Firebase before saving.';return}
+ announcementSaving=true;el('announcement-save').disabled=true;error.textContent='';
+ try{const now=new Date().toISOString();await setDoc(announcementRef(editingAnnouncement?.id||createId()),{title,body,createdAt:editingAnnouncement?.createdAt||editingAnnouncement?.updatedAt||now,updatedAt:now});el('announcement-form').hidden=true}catch(e){error.textContent='Save failed: '+e.message}finally{announcementSaving=false;el('announcement-save').disabled=false}
 });
 // Score records use explicit Firestore operations. Never infer deletions from a UI snapshot.
 window.cloudSyncChange=()=>{console.warn('Legacy cloudSyncChange disabled: use cloudSaveScoreRecord/cloudDeleteScoreRecord.');};
